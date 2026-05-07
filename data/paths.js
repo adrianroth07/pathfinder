@@ -13,7 +13,7 @@ export const ALL_PATHS = [
     flexibility: 'Can switch; IHK cert stays valid',
     outlook: 'Meister, further study, high demand',
     minCert: 'Hauptschulabschluss',
-    clusters: ['hands-on', 'business', 'people'],
+    fields: ['trades', 'business', 'healthcare', 'engineering', 'arts', 'social', 'law', 'nature'],
     stories: ['lena', 'marco'],
     nextSteps: [
       'Browse Ausbildung professions at ausbildung.de — search by interest, not job title',
@@ -40,7 +40,7 @@ export const ALL_PATHS = [
     flexibility: 'Can change subject; time cost is high',
     outlook: 'Wide — depends on field and format',
     minCert: 'Fachhochschulreife',
-    clusters: ['analytical', 'creative', 'people', 'business'],
+    fields: ['healthcare', 'engineering', 'science', 'arts', 'business', 'social', 'law', 'sport'],
     stories: ['sarah', 'tim'],
     branches: [
       {
@@ -87,7 +87,7 @@ export const ALL_PATHS = [
     flexibility: '6-month notice typical',
     outlook: 'Strong for further study or care career',
     minCert: null,
-    clusters: ['people', 'nature', 'creative'],
+    fields: ['healthcare', 'social', 'nature', 'sport'],
     stories: ['anna'],
     nextSteps: [
       'Search for placements at bundesfreiwilligendienst.de — filter by location and field',
@@ -114,7 +114,7 @@ export const ALL_PATHS = [
     flexibility: 'Stop anytime — low lock-in',
     outlook: 'Portfolio grows, income scales',
     minCert: null,
-    clusters: ['creative', 'business', 'analytical'],
+    fields: ['arts', 'business', 'engineering'],
     stories: ['jay'],
     nextSteps: [
       'Pick one skill — design, video, writing, coding — and do one free project to build a portfolio piece',
@@ -141,7 +141,7 @@ export const ALL_PATHS = [
     flexibility: 'Fixed contracts; exit possible after initial period',
     outlook: 'Specialist qualifications, officer track, or civilian transfer',
     minCert: 'Hauptschulabschluss',
-    clusters: ['hands-on', 'business', 'analytical'],
+    fields: ['engineering', 'trades', 'law', 'sport'],
     stories: [],
     nextSteps: [
       'Book a no-commitment info session at your nearest Karrierecenter der Bundeswehr',
@@ -168,7 +168,7 @@ export const ALL_PATHS = [
     flexibility: 'No lock-in at all',
     outlook: 'Depends entirely on what you do',
     minCert: null,
-    clusters: ['creative', 'nature', 'people'],
+    fields: ['nature', 'sport', 'arts', 'social'],
     stories: ['felix'],
     nextSteps: [
       'Write down 3 things you\'d actually want to explore — this shapes whether you work, travel or volunteer',
@@ -191,11 +191,55 @@ export const CERT_RANK = {
   'Abitur': 4,
 };
 
-export const CLUSTER_LABELS = {
-  'hands-on': 'Hands-on & technical',
-  'people': 'People & care',
-  'creative': 'Creative & digital',
-  'analytical': 'Analytical & data',
-  'nature': 'Nature & environment',
-  'business': 'Business & organisation',
-};
+export const FIELD_AREAS = [
+  {
+    id: 'healthcare',
+    label: 'Healthcare & Medicine',
+    examples: ['Medizin', 'Pflege', 'Physiotherapie', 'MFA', 'Psychologie'],
+  },
+  {
+    id: 'engineering',
+    label: 'Engineering & Technology',
+    examples: ['Maschinenbau', 'Informatik', 'Mechatroniker', 'Elektrotechnik', 'IT'],
+  },
+  {
+    id: 'science',
+    label: 'Science & Research',
+    examples: ['Biologie', 'Chemie', 'Physik', 'Umweltwissenschaften', 'Labortechnik'],
+  },
+  {
+    id: 'arts',
+    label: 'Arts, Media & Design',
+    examples: ['Grafik', 'Film', 'Mediengestaltung', 'UX Design', 'Fotografie'],
+  },
+  {
+    id: 'business',
+    label: 'Business & Finance',
+    examples: ['BWL', 'Kaufmann/-frau', 'Banking', 'Marketing', 'Controlling'],
+  },
+  {
+    id: 'social',
+    label: 'Education & Social Work',
+    examples: ['Soziale Arbeit', 'Erzieher/-in', 'Sozialpädagogik', 'Lehramt', 'Coaching'],
+  },
+  {
+    id: 'trades',
+    label: 'Trades & Crafts',
+    examples: ['Elektriker', 'Tischler', 'Kfz-Mechatroniker', 'Sanitär', 'Bau'],
+  },
+  {
+    id: 'law',
+    label: 'Law & Public Service',
+    examples: ['Jura', 'Verwaltung', 'RA-Fachangestellte', 'Rechtspflege', 'Politik'],
+  },
+  {
+    id: 'nature',
+    label: 'Nature & Environment',
+    examples: ['Landwirtschaft', 'Forstwirtschaft', 'Gärtner/-in', 'Naturschutz', 'Biologie'],
+  },
+  {
+    id: 'sport',
+    label: 'Sport & Physical',
+    examples: ['Sportwissenschaft', 'Fitnesstrainer', 'Physiotherapie', 'Outdoor', 'Bundeswehr'],
+  },
+];

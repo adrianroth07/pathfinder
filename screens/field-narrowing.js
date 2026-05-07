@@ -1,4 +1,4 @@
-import { CLUSTER_LABELS } from '../data/paths.js';
+import { FIELD_AREAS } from '../data/paths.js';
 
 export function renderFieldNarrowing({ selectedClusters, paths, onToggle, onNext, onBack }) {
   const el = document.createElement('div');
@@ -13,9 +13,9 @@ export function renderFieldNarrowing({ selectedClusters, paths, onToggle, onNext
       <div class="progress-fill" style="width:70%"></div>
     </div>
     <div class="section">
-      <div class="heading">What kind of work feels right?</div>
-      <div class="subheading">Not what job — what kind of day. Pick all that feel true.</div>
-      <div class="cluster-grid js-clusters"></div>
+      <div class="heading">Which worlds interest you?</div>
+      <div class="subheading">Pick every field that genuinely appeals — not what sounds impressive. Your 3 paths all work across multiple fields.</div>
+      <div class="cluster-grid js-fields"></div>
       <div class="surface js-summary" style="display:none;"></div>
       <div class="step-actions">
         <button class="btn js-back">← Back</button>
@@ -24,51 +24,39 @@ export function renderFieldNarrowing({ selectedClusters, paths, onToggle, onNext
     </div>
     <div class="ai-bar">
       <div class="ai-dot"></div>
-      <span>Not sure which cluster fits? Ask — AI helps you think it through.</span>
+      <span>Not sure which field fits? Ask — AI helps you think it through.</span>
     </div>
   `;
 
-  const grid = el.querySelector('.js-clusters');
+  const grid = el.querySelector('.js-fields');
   const summary = el.querySelector('.js-summary');
   const current = new Set(selectedClusters || []);
 
   function updateSummary() {
-    if (current.size === 0) {
-      summary.style.display = 'none';
-      return;
-    }
-    const matches = paths.filter(p => p.clusters.some(c => current.has(c)));
-    if (matches.length === 0) {
-      summary.style.display = 'none';
-      return;
-    }
-    const clusterLabels = [...current].map(c => CLUSTER_LABELS[c]).join(' & ');
+    if (current.size === 0) { summary.style.display = 'none'; return; }
+    const matches = paths.filter(p => p.fields.some(f => current.has(f)));
+    if (matches.length === 0) { summary.style.display = 'none'; return; }
+    const selectedLabels = FIELD_AREAS
+      .filter(f => current.has(f.id))
+      .map(f => f.label)
+      .join(', ');
     summary.style.display = 'block';
-    summary.innerHTML = `Your results are now specific: <strong>${matches[0].name} — ${clusterLabels}</strong>`;
+    summary.innerHTML = `<strong>${matches.map(p => p.name).join(', ')}</strong> all fit these interests: ${selectedLabels}.`;
   }
 
-  Object.entries(CLUSTER_LABELS).forEach(([key, label]) => {
-    const subLabels = {
-      'hands-on': 'Physical work, tools, tangible results',
-      'people': 'Support, healthcare, education',
-      'creative': 'Design, media, content, tech',
-      'analytical': 'Research, numbers, systems',
-      'nature': 'Outdoors, sustainability',
-      'business': 'Management, admin, entrepreneurship',
-    };
-
+  FIELD_AREAS.forEach(area => {
     const card = document.createElement('div');
-    card.className = 'cluster-card' + (current.has(key) ? ' selected' : '');
+    card.className = 'cluster-card' + (current.has(area.id) ? ' selected' : '');
     card.innerHTML = `
-      <div class="cluster-title">${label}</div>
-      <div class="cluster-sub">${subLabels[key]}</div>
+      <div class="cluster-title">${area.label}</div>
+      <div class="cluster-sub">${area.examples.join(' · ')}</div>
     `;
     card.addEventListener('click', () => {
       card.classList.toggle('selected');
-      if (current.has(key)) {
-        current.delete(key);
+      if (current.has(area.id)) {
+        current.delete(area.id);
       } else {
-        current.add(key);
+        current.add(area.id);
       }
       onToggle([...current]);
       updateSummary();

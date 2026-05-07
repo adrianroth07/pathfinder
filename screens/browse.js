@@ -1,6 +1,20 @@
-import { ALL_PATHS } from '../data/paths.js';
+import { ALL_PATHS, FIELD_AREAS } from '../data/paths.js';
 import { pathColor } from '../data/colors.js';
 import { showPathDetailModal } from './path-detail-modal.js';
+
+// First 3 examples per field — shown as "Fields it covers" on expanded cards
+const FIELD_AREA_EXAMPLES = Object.fromEntries(
+  FIELD_AREAS.map(f => [f.id, f.examples.slice(0, 3).join(', ')])
+);
+
+const COMPARE_ROWS = [
+  { label: 'Duration',            key: 'meta' },
+  { label: 'Typical day',         key: 'typical_day' },
+  { label: 'Income now',          key: 'income_now' },
+  { label: 'Freedom',             key: 'freedom' },
+  { label: 'If you change mind',  key: 'flexibility' },
+  { label: '5-year outlook',      key: 'outlook' },
+];
 
 export function renderBrowse({ onStartQuiz, onBack }) {
   const el = document.createElement('div');
@@ -12,8 +26,10 @@ export function renderBrowse({ onStartQuiz, onBack }) {
     </div>
     <div class="section">
       <div class="heading" style="margin-bottom:4px;">All paths</div>
-      <div class="subheading" style="margin-bottom:20px;">6 routes after school in Germany. Click any to read more.</div>
+      <div class="subheading" style="margin-bottom:4px;">6 routes after school in Germany. Tap any card for the full overview.</div>
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:20px;">Or tap <strong>Compare</strong> on up to 3 paths to see them side by side.</div>
       <div class="js-path-list"></div>
+      <div class="js-compare-table" style="display:none;margin-bottom:24px;"></div>
       <div style="margin-top:24px;padding:16px 18px;background:var(--green-light);border-radius:var(--radius-lg);display:flex;justify-content:space-between;align-items:center;gap:12px;">
         <div>
           <div style="font-size:13px;font-weight:500;color:var(--green-text);margin-bottom:2px;">Not sure which fits you?</div>
@@ -22,65 +38,180 @@ export function renderBrowse({ onStartQuiz, onBack }) {
         <button class="btn js-quiz" style="background:var(--green-primary);color:#fff;border-color:var(--green-primary);white-space:nowrap;flex-shrink:0;">Take the quiz →</button>
       </div>
     </div>
+
+    <div class="js-compare-bar" style="display:none;position:sticky;bottom:0;left:0;right:0;background:var(--green-primary);padding:12px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid rgba(255,255,255,0.15);z-index:100;">
+      <div style="color:#fff;font-size:13px;font-weight:500;" class="js-bar-label">2 paths selected</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="js-clear-compare" style="background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">Clear</button>
+        <button class="js-do-compare" style="background:#fff;color:var(--green-primary);border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">Compare →</button>
+      </div>
+    </div>
   `;
 
   const list = el.querySelector('.js-path-list');
+  const compareTable = el.querySelector('.js-compare-table');
+  const compareBar = el.querySelector('.js-compare-bar');
+  const barLabel = el.querySelector('.js-bar-label');
+
+  const selected = new Set();
+  const cardEls = {};
+
+  function updateBar() {
+    const n = selected.size;
+    if (n >= 2) {
+      compareBar.style.display = 'flex';
+      barLabel.textContent = `${n} path${n > 1 ? 's' : ''} selected`;
+    } else {
+      compareBar.style.display = 'none';
+      compareTable.style.display = 'none';
+    }
+  }
+
+  function renderCompareTable() {
+    const paths = ALL_PATHS.filter(p => selected.has(p.id));
+    compareTable.innerHTML = '';
+    compareTable.style.display = 'block';
+
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:12px;padding-top:4px;';
+    heading.textContent = 'Side-by-side comparison';
+    compareTable.appendChild(heading);
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'overflow-x:auto;';
+
+    const table = document.createElement('div');
+    table.style.cssText = `min-width:${paths.length * 140 + 110}px;`;
+
+    // Header
+    const headerRow = document.createElement('div');
+    headerRow.style.cssText = 'display:flex;gap:6px;margin-bottom:4px;';
+    headerRow.innerHTML = `<div style="width:110px;flex-shrink:0;"></div>`;
+    paths.forEach(path => {
+      const c = pathColor(path.id);
+      const cell = document.createElement('div');
+      cell.style.cssText = `flex:1;min-width:130px;padding:10px 12px;border-radius:var(--radius-md);background:${c.bg};border-top:3px solid ${c.border};`;
+      cell.innerHTML = `<div style="font-size:13px;font-weight:700;color:${c.text};">${path.name}</div><div style="font-size:11px;color:${c.text};opacity:0.7;margin-top:2px;">${path.tagline}</div>`;
+      headerRow.appendChild(cell);
+    });
+    table.appendChild(headerRow);
+
+    // Data rows
+    COMPARE_ROWS.forEach((row, i) => {
+      const rowEl = document.createElement('div');
+      rowEl.style.cssText = 'display:flex;gap:6px;margin-bottom:4px;';
+      const labelCell = document.createElement('div');
+      labelCell.style.cssText = 'width:110px;flex-shrink:0;font-size:11px;font-weight:500;color:var(--text-tertiary);display:flex;align-items:center;padding:0 4px;';
+      labelCell.textContent = row.label;
+      rowEl.appendChild(labelCell);
+      paths.forEach(path => {
+        const cell = document.createElement('div');
+        cell.style.cssText = `flex:1;min-width:130px;font-size:12px;color:var(--text-secondary);padding:8px 12px;border-radius:var(--radius-md);background:${i % 2 === 0 ? 'var(--bg-secondary)' : 'var(--bg-primary)'};line-height:1.4;`;
+        cell.textContent = path[row.key] || '—';
+        rowEl.appendChild(cell);
+      });
+      table.appendChild(rowEl);
+    });
+
+    // Branches row for Studium if selected
+    const studium = paths.find(p => p.id === 'studium');
+    if (studium) {
+      const rowEl = document.createElement('div');
+      rowEl.style.cssText = 'display:flex;gap:6px;margin-bottom:4px;';
+      const labelCell = document.createElement('div');
+      labelCell.style.cssText = 'width:110px;flex-shrink:0;font-size:11px;font-weight:500;color:var(--text-tertiary);display:flex;align-items:flex-start;padding:4px 4px 0;';
+      labelCell.textContent = 'Formats';
+      rowEl.appendChild(labelCell);
+      paths.forEach(path => {
+        const cell = document.createElement('div');
+        cell.style.cssText = 'flex:1;min-width:130px;padding:8px 12px;border-radius:var(--radius-md);background:var(--bg-secondary);';
+        if (path.branches) {
+          cell.innerHTML = path.branches.map(b =>
+            `<div style="font-size:12px;font-weight:500;color:var(--text-primary);">${b.name}</div><div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px;">${b.desc}</div>`
+          ).join('');
+        } else {
+          cell.style.cssText += 'display:flex;align-items:center;';
+          cell.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);">—</span>`;
+        }
+        rowEl.appendChild(cell);
+      });
+      table.appendChild(rowEl);
+    }
+
+    wrap.appendChild(table);
+    compareTable.appendChild(wrap);
+
+    compareTable.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   ALL_PATHS.forEach(path => {
     const c = pathColor(path.id);
     const card = document.createElement('div');
     card.className = 'path-card';
-    card.style.cssText = `cursor:pointer;border-left-color:${c.border};`;
+    card.style.cssText = `border-left-color:${c.border};cursor:pointer;`;
+
+    const descSnippet = path.description.split('.')[0] + '.';
+    const fieldExamples = (path.fields || [])
+      .slice(0, 3)
+      .map(f => FIELD_AREA_EXAMPLES[f])
+      .filter(Boolean)
+      .join(' · ');
+
     card.innerHTML = `
-      <div class="path-card-header">
-        <div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;">
+        <div style="flex:1;min-width:0;">
           <div class="path-name" style="color:${c.text};">${path.name}</div>
           <div class="path-tagline">${path.tagline}</div>
         </div>
-        <span style="font-size:18px;color:${c.border};transition:transform 0.2s;">›</span>
+        <button class="js-compare-toggle" data-id="${path.id}" style="font-size:11px;font-weight:500;padding:4px 9px;border-radius:20px;border:1px solid var(--border-secondary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;white-space:nowrap;flex-shrink:0;">Compare</button>
       </div>
-      <div class="path-meta" style="margin-bottom:10px;">${path.meta}</div>
-      <div class="js-detail" style="display:none;">
-        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px;">${path.description}</div>
-        ${path.branches ? `
-          <div style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--text-tertiary);margin-bottom:6px;">Three formats</div>
-          ${path.branches.map(b => `
-            <div style="padding:8px 10px;background:var(--bg-secondary);border-radius:var(--radius-md);margin-bottom:5px;">
-              <div style="font-size:13px;font-weight:500;margin-bottom:1px;">${b.name}</div>
-              <div style="font-size:12px;color:var(--text-secondary);">${b.desc}</div>
-              <div style="font-size:11px;color:var(--text-tertiary);margin-top:3px;">${b.meta}</div>
-            </div>
-          `).join('')}
-        ` : `
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-            <div class="surface" style="margin-bottom:0;font-size:12px;"><span style="color:var(--text-tertiary);">Income now</span><br>${path.income_now}</div>
-            <div class="surface" style="margin-bottom:0;font-size:12px;"><span style="color:var(--text-tertiary);">Freedom</span><br>${path.freedom}</div>
-            <div class="surface" style="margin-bottom:0;font-size:12px;"><span style="color:var(--text-tertiary);">If you change your mind</span><br>${path.flexibility}</div>
-            <div class="surface" style="margin-bottom:0;font-size:12px;"><span style="color:var(--text-tertiary);">5-year outlook</span><br>${path.outlook}</div>
-          </div>
-        `}
-        <button class="btn js-read-more" style="margin-top:12px;font-size:12px;" data-id="${path.id}">Read full guide →</button>
-      </div>
+      <div class="path-meta" style="margin-bottom:8px;">${path.meta}</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px;">${descSnippet}</div>
+      ${fieldExamples ? `<div style="font-size:11px;color:var(--text-tertiary);">${fieldExamples}</div>` : ''}
     `;
 
-    const detail = card.querySelector('.js-detail');
-    const arrow = card.querySelector('span');
-    let open = false;
+    const compareToggle = card.querySelector('.js-compare-toggle');
 
     card.addEventListener('click', e => {
-      if (e.target.closest('.js-read-more')) return;
-      open = !open;
-      detail.style.display = open ? 'block' : 'none';
-      arrow.style.transform = open ? 'rotate(90deg)' : '';
-      arrow.style.transition = 'transform 0.2s';
-    });
-
-    card.querySelector('.js-read-more').addEventListener('click', e => {
-      e.stopPropagation();
+      if (e.target.closest('.js-compare-toggle')) return;
       showPathDetailModal(path);
     });
 
+    compareToggle.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = path.id;
+      if (selected.has(id)) {
+        selected.delete(id);
+        compareToggle.textContent = 'Compare';
+        compareToggle.style.cssText = 'font-size:11px;font-weight:500;padding:4px 9px;border-radius:20px;border:1px solid var(--border-secondary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;white-space:nowrap;flex-shrink:0;';
+        card.style.outline = '';
+      } else {
+        if (selected.size >= 3) return;
+        selected.add(id);
+        compareToggle.innerHTML = '✓ Added';
+        compareToggle.style.cssText = `font-size:11px;font-weight:500;padding:4px 9px;border-radius:20px;border:1px solid ${c.border};background:${c.bg};color:${c.text};cursor:pointer;white-space:nowrap;flex-shrink:0;`;
+        card.style.outline = `2px solid ${c.border}`;
+        card.style.outlineOffset = '-2px';
+      }
+      compareTable.style.display = 'none';
+      updateBar();
+    });
+
+    cardEls[path.id] = { card, compareToggle, c };
     list.appendChild(card);
+  });
+
+  el.querySelector('.js-do-compare').addEventListener('click', () => renderCompareTable());
+
+  el.querySelector('.js-clear-compare').addEventListener('click', () => {
+    selected.clear();
+    Object.values(cardEls).forEach(({ card, compareToggle, c }) => {
+      compareToggle.textContent = 'Compare';
+      compareToggle.style.cssText = 'font-size:11px;font-weight:500;padding:4px 9px;border-radius:20px;border:1px solid var(--border-secondary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;white-space:nowrap;';
+      card.style.outline = '';
+    });
+    compareTable.style.display = 'none';
+    updateBar();
   });
 
   el.querySelector('.js-back').addEventListener('click', onBack);

@@ -1,4 +1,6 @@
-import { CLUSTER_LABELS } from '../data/paths.js';
+import { FIELD_AREAS } from '../data/paths.js';
+
+const FIELD_LABEL = Object.fromEntries(FIELD_AREAS.map(f => [f.id, f.label]));
 import { pathColor } from '../data/colors.js';
 
 const ROWS = [
@@ -46,8 +48,8 @@ export function renderComparison({ paths, selectedClusters, onNext, onBack }) {
   headerRow.innerHTML = `<div style="width:110px;flex-shrink:0;"></div>`;
 
   paths.forEach(path => {
-    const clusterMatch = path.clusters.find(c => selectedClusters && selectedClusters.includes(c));
-    const clusterLabel = clusterMatch ? CLUSTER_LABELS[clusterMatch] : path.tagline;
+    const fieldMatch = path.fields.find(f => selectedClusters && selectedClusters.includes(f));
+    const clusterLabel = fieldMatch ? FIELD_LABEL[fieldMatch] : path.tagline;
     const c = pathColor(path.id);
     const cell = document.createElement('div');
     cell.className = 'compare-header';

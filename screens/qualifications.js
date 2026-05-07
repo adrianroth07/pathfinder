@@ -230,12 +230,64 @@ export function renderQualifications({ quals, paths, filterResult, onChange, onB
     paths.forEach(path => {
       const result = filterResult[path.id];
       if (!result) return;
-      const banner = document.createElement('div');
-      banner.className = 'banner ' + (result.open ? 'banner-success' : 'banner-warning');
-      banner.textContent = result.open
-        ? `${path.name} — open${result.note ? ' · ' + result.note : ' · your profile meets the requirements'}`
-        : `${path.name} — ${result.note}`;
-      resultsEl.appendChild(banner);
+
+      const card = document.createElement('div');
+      card.style.cssText = 'border:1px solid var(--border-secondary);border-radius:var(--radius-md);overflow:hidden;margin-bottom:10px;';
+
+      // Status header row
+      const header = document.createElement('div');
+      const headerBg = !result.open ? '#FEF2F2' : result.gradeFlag ? '#FFFBEB' : '#F0FDF4';
+      const headerBorder = !result.open ? '#FECACA' : result.gradeFlag ? '#FDE68A' : '#BBF7D0';
+      const dot = !result.open ? '✗' : result.gradeFlag ? '⚠' : '✓';
+      const dotColor = !result.open ? '#DC2626' : result.gradeFlag ? '#D97706' : '#16A34A';
+      const statusText = !result.open
+        ? result.note
+        : result.note
+          ? result.note
+          : result.gradeFlag
+            ? 'Open — but grades may limit some programmes within this path'
+            : 'Open — your profile meets the requirements';
+
+      header.style.cssText = `display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:${headerBg};border-bottom:1px solid ${headerBorder};`;
+      header.innerHTML = `
+        <span style="font-size:13px;font-weight:700;color:${dotColor};flex-shrink:0;margin-top:1px;">${dot}</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:2px;">${path.name}</div>
+          <div style="font-size:12px;color:var(--text-secondary);line-height:1.4;">${statusText}</div>
+        </div>
+      `;
+      card.appendChild(header);
+
+      // Tips section — cert progression routes or grade tips
+      const tips = (!result.open && result.certTips && result.certTips.length > 0)
+        ? { label: 'How to get there', items: result.certTips }
+        : (result.gradeFlag && result.gradeTips && result.gradeTips.length > 0)
+          ? { label: 'What you can do', items: result.gradeTips }
+          : null;
+
+      if (tips) {
+        const tipsWrap = document.createElement('div');
+        tipsWrap.style.cssText = 'padding:12px 14px;background:var(--bg-primary);';
+
+        const tipsLabel = document.createElement('div');
+        tipsLabel.style.cssText = 'font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-tertiary);margin-bottom:8px;';
+        tipsLabel.textContent = tips.label;
+        tipsWrap.appendChild(tipsLabel);
+
+        tips.items.forEach(tip => {
+          const tipEl = document.createElement('div');
+          tipEl.style.cssText = 'display:flex;gap:8px;margin-bottom:7px;align-items:flex-start;';
+          tipEl.innerHTML = `
+            <span style="color:var(--green-primary);font-size:12px;flex-shrink:0;margin-top:1px;">→</span>
+            <span style="font-size:12px;color:var(--text-secondary);line-height:1.45;">${tip}</span>
+          `;
+          tipsWrap.appendChild(tipEl);
+        });
+
+        card.appendChild(tipsWrap);
+      }
+
+      resultsEl.appendChild(card);
     });
   }
 
@@ -281,7 +333,7 @@ function buildGradeInput(container, currentVal, onSelect) {
     } else {
       input.style.borderColor = 'var(--border-success)';
       feedback.style.color = 'var(--text-success)';
-      feedback.textContent = num <= 2 ? 'Sehr gut — strong result.' : num <= 3 ? 'Gut / befriedigend.' : num <= 4 ? 'Ausreichend.' : 'Noted.';
+      feedback.textContent = num <= 2 ? 'Sehr gut — strong result.' : num <= 2.5 ? 'Gut — most paths open.' : num <= 3 ? 'Befriedigend — some competitive programmes may be harder to access.' : num <= 4 ? 'Ausreichend — see tips below for each path.' : 'Noted — see tips below.';
       onSelect(num);
     }
   }

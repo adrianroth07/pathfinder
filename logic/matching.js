@@ -63,18 +63,112 @@ const ANCHOR_BOOSTS = {
   balance: { fsj: 2, 'gap-year': 2, freelancing: 1 },
 };
 
-export function scorePaths(riasecCounts, anchor) {
+// Blocks screen → direct path boosts based on what's holding the user back
+const BLOCK_BOOSTS = {
+  money:          { ausbildung: 2, bundeswehr: 2 },
+  family:         { ausbildung: 1, studium: 1, bundeswehr: 1 },
+  'wrong-choice': { fsj: 2, 'gap-year': 2 },
+  behind:         { ausbildung: 2, bundeswehr: 1 },
+};
+
+// Narrative keyword signals — each matched theme adds boosts to relevant paths.
+// Words checked against combined savickas + success-picture text (lowercased).
+const NARRATIVE_SIGNALS = [
+  {
+    words: ['help', 'volunteer', 'care', 'social', 'people', 'community', 'teach', 'support',
+            'helfen', 'freiwillig', 'sozial', 'menschen', 'pflege', 'ehrenamt'],
+    boosts: { fsj: 2, studium: 1 },
+  },
+  {
+    words: ['creative', 'design', 'art', 'music', 'video', 'write', 'express', 'film',
+            'kreativ', 'kunst', 'gestalten', 'schreiben', 'eigenes projekt'],
+    boosts: { freelancing: 2 },
+  },
+  {
+    words: ['travel', 'explore', 'world', 'abroad', 'adventure', 'discover', 'experience',
+            'reisen', 'welt', 'erfahrung', 'erkunden', 'ausland', 'abenteuer'],
+    boosts: { 'gap-year': 2 },
+  },
+  {
+    words: ['freedom', 'independent', 'own terms', 'flexible', 'my own', 'startup', 'self',
+            'freiheit', 'unabhängig', 'selbst', 'eigener chef', 'selbstständig'],
+    boosts: { freelancing: 1, 'gap-year': 1 },
+  },
+  {
+    words: ['build', 'fix', 'hands', 'workshop', 'tool', 'repair', 'craft', 'make',
+            'bauen', 'reparier', 'werkzeug', 'handwerk', 'herstellen'],
+    boosts: { ausbildung: 1 },
+  },
+  {
+    words: ['research', 'study', 'university', 'deep', 'science', 'knowledge', 'academic',
+            'studier', 'universität', 'forschen', 'wissen', 'wissenschaft', 'tief'],
+    boosts: { studium: 2 },
+  },
+  {
+    words: ['structure', 'discipline', 'order', 'stable', 'secure', 'organized', 'reliable', 'team',
+            'disziplin', 'ordnung', 'sicher', 'stabil', 'verlässlich', 'geregelt'],
+    boosts: { bundeswehr: 2, ausbildung: 1 },
+  },
+  {
+    words: ['lead', 'business', 'entrepreneur', 'manage', 'run', 'company', 'own business',
+            'leiten', 'unternehmen', 'gründen', 'chef', 'eigenes unternehmen'],
+    boosts: { freelancing: 1, studium: 1 },
+  },
+];
+
+function scoreNarrative(text) {
+  const lower = text.toLowerCase();
+  const boosts = {};
+  for (const signal of NARRATIVE_SIGNALS) {
+    if (signal.words.some(w => lower.includes(w))) {
+      for (const [pathId, boost] of Object.entries(signal.boosts)) {
+        boosts[pathId] = (boosts[pathId] || 0) + boost;
+      }
+    }
+  }
+  return boosts;
+}
+
+// Combines block and narrative boosts into a single extra-score map { pathId: number }.
+// Call once per session and pass the result into scorePaths / getWildcards.
+export function computeExtraBoosts(blocks = [], savickasAnswers = {}, successPicture = '') {
+  const extra = {};
+
+  for (const blockId of blocks) {
+    for (const [pathId, boost] of Object.entries(BLOCK_BOOSTS[blockId] || {})) {
+      extra[pathId] = (extra[pathId] || 0) + boost;
+    }
+  }
+
+  const narrativeText = [
+    savickasAnswers?.roleModel || '',
+    savickasAnswers?.story     || '',
+    savickasAnswers?.motto     || '',
+    successPicture             || '',
+  ].join(' ').trim();
+
+  if (narrativeText) {
+    for (const [pathId, boost] of Object.entries(scoreNarrative(narrativeText))) {
+      extra[pathId] = (extra[pathId] || 0) + boost;
+    }
+  }
+
+  return extra;
+}
+
+export function scorePaths(riasecCounts, anchor, extraBoosts = {}) {
   const pathBoost = anchor ? (ANCHOR_BOOSTS[anchor] || {}) : {};
   return ALL_PATHS.map(path => {
     let score = 0;
     for (const type of path.riasecFit) score += riasecCounts[type] || 0;
     score += pathBoost[path.id] || 0;
+    score += extraBoosts[path.id] || 0;
     return { path, score };
   }).sort((a, b) => b.score - a.score).map(x => x.path);
 }
 
-export function suggestPaths(riasecCounts, lifestyle) {
-  const ranked = scorePaths(riasecCounts, lifestyle?.anchor);
+export function suggestPaths(riasecCounts, lifestyle, extraBoosts = {}) {
+  const ranked = scorePaths(riasecCounts, lifestyle?.anchor, extraBoosts);
   if (lifestyle?.wantsIncomeNow) {
     const incomeBoost = { high: 2, variable: 1, low: 0 };
     ranked.sort((a, b) => (incomeBoost[b.incomeFit] || 0) - (incomeBoost[a.incomeFit] || 0));
@@ -89,8 +183,8 @@ export function suggestPaths(riasecCounts, lifestyle) {
 }
 
 // Returns up to `count` wildcard paths (ranked paths not in the top 3)
-export function getWildcards(riasecCounts, suggestedPaths, anchor, count = 1) {
-  const ranked = scorePaths(riasecCounts, anchor);
+export function getWildcards(riasecCounts, suggestedPaths, anchor, count = 1, extraBoosts = {}) {
+  const ranked = scorePaths(riasecCounts, anchor, extraBoosts);
   const suggestedIds = new Set(suggestedPaths.map(p => p.id));
   const wildcards = [];
   for (const p of ranked) {
@@ -161,18 +255,103 @@ export function buildReasons(paths, riasecCounts, lifestyle) {
   return out;
 }
 
+// Grade tips per path — called only when a grade flag is raised.
+// grade is German 1–6 scale (1 = best).
+function getGradeTips(pathId, grade) {
+  if (pathId === 'studium') {
+    const tips = [
+      'FH (Fachhochschule) and Duales Studium often have lower or no NC — both give you a recognised degree.',
+    ];
+    if (grade >= 3.0) {
+      tips.push(
+        'The TMS (Test für Medizinische Studiengänge) can offset a weak Abitur grade at many medical schools — it\'s worth sitting if medicine is your goal.',
+        'Austria admits German students via the EMS entrance test, bypassing the German NC entirely — a real option for medicine.',
+        'A year doing an FSJ in a hospital (or a Praktikum in a clinical setting) significantly strengthens any medicine or health-science application.',
+        'Wartesemester (waiting semesters) accumulate while you work or study something related — many students get into medicine this way after 3–6 years.',
+        'Private medical schools (Witten/Herdecke, Brandenburg, etc.) use interviews and tests instead of NC — different criteria, genuinely worth exploring.',
+      );
+    } else {
+      tips.push(
+        'Highly competitive programmes like Medicine (NC typically 1.0–1.5) or Psychology will be harder to access directly.',
+        'A gap year or FSJ in a relevant field adds experience that some universities consider alongside your grade.',
+      );
+    }
+    return tips;
+  }
+
+  if (pathId === 'bundeswehr') {
+    return [
+      'The officer track (Offizierlaufbahn) requires strong grades — enlisted and NCO tracks have much lower requirements.',
+      'Specialist roles in IT, medical, or logistics each have their own criteria — ask at your nearest Karrierecenter der Bundeswehr.',
+      'Freiwilliger Wehrdienst (7–23 months) is open without strong grades and is a good way to find out if the Bundeswehr suits you before committing.',
+    ];
+  }
+
+  if (pathId === 'ausbildung') {
+    return [
+      'Most companies care far more about attitude and practical skills than grades — apply broadly.',
+      'Grade-sensitive fields (banking, pharmaceutical, large corporates) are tougher; trades, logistics, and tech apprenticeships usually are not.',
+      'A short Praktikum or volunteer stint in your target field makes an application stand out more than any grade improvement.',
+      'The Bundesagentur für Arbeit offers free Bewerbungscoaching — worth using if rejections come in.',
+    ];
+  }
+
+  return [];
+}
+
+// Cert-based progression routes shown when a path is blocked by qualification level.
+function getCertTips(pathId, cert) {
+  if (pathId === 'studium') {
+    if (cert === 'Hauptschulabschluss') {
+      return [
+        'Hauptschule → Realschulabschluss → Fachoberschule (FOS) → Fachabitur → Fachhochschule (FH) — the most common stepping-stone route.',
+        'Hauptschule → Ausbildung → work experience → higher vocational qualification → university access in most federal states.',
+        'Completing a Meister or technical academy qualification (Techniker/Fachwirt) also opens university access without Abitur.',
+        'Some universities offer aptitude tests or trial semesters for applicants without formal entry qualifications — worth checking per federal state.',
+      ];
+    }
+    if (cert === 'Realschulabschluss') {
+      return [
+        'Realschule → Fachoberschule (FOS) → Fachabitur → Fachhochschule (FH) — the most direct route, typically 1–2 extra years.',
+        'Realschule → Gymnasium upper level (Klasse 11–13) → Abitur → full university access.',
+        'Realschule → Ausbildung → work experience → higher vocational qualification → possible university access without Abitur.',
+        'Duales Studium is reachable later via a completed Ausbildung plus professional experience — companies apply, not universities.',
+      ];
+    }
+  }
+  return [];
+}
+
 export function filterByQuals(paths, quals) {
   const userCertRank = CERT_RANK[quals.cert] ?? 0;
+  const grade = quals.overallGrade;
   const out = {};
+
   for (const path of paths) {
     const open = userCertRank >= (CERT_RANK[path.minCert] ?? 0);
     let note = null;
-    if (!open) note = `Typically requires ${path.minCert} — exceptions exist with strong work experience.`;
-    else if (path.id === 'freelancing' && !quals.hasPortfolio)
+    let gradeFlag = false;
+    let gradeTips = [];
+    let certTips = [];
+
+    if (!open) {
+      note = `Requires ${path.minCert} — you're not blocked permanently, there are clear routes.`;
+      certTips = getCertTips(path.id, quals.cert);
+    } else if (path.id === 'freelancing' && !quals.hasPortfolio) {
       note = 'Open — building a client base takes time without a portfolio yet.';
-    else if (path.id === 'studium' && quals.cert === 'Realschulabschluss')
-      note = 'Open — you\'d need Fachhochschulreife or Abitur first, or via second-chance routes.';
-    out[path.id] = { open, note };
+    } else if (path.id === 'studium' && quals.cert === 'Realschulabschluss') {
+      note = 'Not yet — you\'d need Fachabitur or Abitur first, but there are direct routes to get there.';
+      certTips = getCertTips(path.id, quals.cert);
+    }
+
+    if (grade !== null && grade !== undefined) {
+      if (path.id === 'studium' && grade >= 2.5) gradeFlag = true;
+      if (path.id === 'bundeswehr' && grade >= 3.0) gradeFlag = true;
+      if (path.id === 'ausbildung' && grade >= 3.5) gradeFlag = true;
+      if (gradeFlag) gradeTips = getGradeTips(path.id, grade);
+    }
+
+    out[path.id] = { open, note, gradeFlag, gradeTips, certTips };
   }
   return out;
 }

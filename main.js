@@ -1,6 +1,6 @@
 import { ROUND1_QUESTIONS, ROUND2_QUESTIONS, RIASEC_MODES } from './data/questions.js';
 import { ALL_PATHS } from './data/paths.js';
-import { computeRiasec, countUnsure, extractLifestyle, suggestPaths, buildReasons, filterByQuals, shouldEndRound1, getWildcards } from './logic/matching.js';
+import { computeRiasec, countUnsure, extractLifestyle, suggestPaths, buildReasons, filterByQuals, shouldEndRound1, getWildcards, computeExtraBoosts } from './logic/matching.js';
 
 import { renderWelcome } from './screens/welcome.js';
 import { renderOpener } from './screens/opener.js';
@@ -66,6 +66,7 @@ const FRESH_STATE = () => ({
   },
   filterResult: {},
   selectedClusters: [],
+  qualitativeBoosts: {},
 });
 
 let state = FRESH_STATE();
@@ -94,14 +95,15 @@ function computeResults() {
   // Auto-route to lena mode if user was unsure ≥3 times, regardless of opener choice
   if (state.unsureCount >= 3 && state.userMode !== 'lena') state.userMode = 'lena';
 
-  state.lifestyle      = extractLifestyle(state.round2Answers);
-  state.suggestedPaths = suggestPaths(state.riasecCounts, state.lifestyle);
-  state.reasons        = buildReasons(state.suggestedPaths, state.riasecCounts, state.lifestyle);
-  state.filterResult   = filterByQuals(state.suggestedPaths, state.quals);
+  state.lifestyle         = extractLifestyle(state.round2Answers);
+  state.qualitativeBoosts = computeExtraBoosts(state.blocks, state.savickasAnswers, state.successPicture);
+  state.suggestedPaths    = suggestPaths(state.riasecCounts, state.lifestyle, state.qualitativeBoosts);
+  state.reasons           = buildReasons(state.suggestedPaths, state.riasecCounts, state.lifestyle);
+  state.filterResult      = filterByQuals(state.suggestedPaths, state.quals);
 
   // Wildcard count by mode: lena=2 (more divergence), malik/clear=0 (more convergence), unknown=1
   const wildcardCount = state.userMode === 'lena' ? 2 : (state.userMode === null ? 1 : 0);
-  state.wildcardPaths  = getWildcards(state.riasecCounts, state.suggestedPaths, state.lifestyle?.anchor, wildcardCount);
+  state.wildcardPaths  = getWildcards(state.riasecCounts, state.suggestedPaths, state.lifestyle?.anchor, wildcardCount, state.qualitativeBoosts);
 }
 
 function render() {
@@ -247,7 +249,7 @@ function render() {
         onSwap: (slotIndex, newPath) => {
           state.suggestedPaths[slotIndex] = newPath;
           const wildcardCount = state.userMode === 'lena' ? 2 : (state.userMode === null ? 1 : 0);
-          state.wildcardPaths = getWildcards(state.riasecCounts, state.suggestedPaths, state.lifestyle?.anchor, wildcardCount);
+          state.wildcardPaths = getWildcards(state.riasecCounts, state.suggestedPaths, state.lifestyle?.anchor, wildcardCount, state.qualitativeBoosts);
           state.reasons = buildReasons(state.suggestedPaths, state.riasecCounts, state.lifestyle);
           state.filterResult = filterByQuals(state.suggestedPaths, state.quals);
         },
